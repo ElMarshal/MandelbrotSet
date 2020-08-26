@@ -1,0 +1,9 @@
+[package]
+name = "MandelbrotSet"
+version = "0.1.0"
+authors = ["marshal20"]
+edition = "2018"
+
+[dependencies]
+png = "0.16.7"
+
