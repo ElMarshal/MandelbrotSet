@@ -73,12 +73,13 @@ fn save_image(color_buffer: &[Color], width: usize, height: usize, path: &str) {
 }
 
 fn main() {
-    const BUFFER_WIDTH: usize = 1024;
-    const BUFFER_HEIGHT: usize = 1024;
+    const BUFFER_WIDTH: usize = 1366;
+    const BUFFER_HEIGHT: usize = 768;
+    const BUFFER_ASPECT_RATIO: Real = (BUFFER_WIDTH as Real) / (BUFFER_HEIGHT as Real);
     const SAMPLE_COUNT: usize = 16;
     const CENTER_X: Real = -0.7453;
     const CENTER_Y: Real = 0.1127;
-    const VIEW_WIDTH: Real = 6.5E-4;
+    const VIEW_WIDTH: Real = 6.5E-4 * BUFFER_ASPECT_RATIO;
     const VIEW_HEIGHT: Real = 6.5E-4;
     const MAX_ITERATIONS: u32 = 250;
     const MAX_LENGTH: Real = 2.0;
@@ -111,8 +112,8 @@ fn main() {
         for x in 0..BUFFER_WIDTH {
             let mut pixel_color = Color {r:0.0, g:0.0, b:0.0, a:0.0};
             for _ in 0..SAMPLE_COUNT {
-                let norm_pos_x = ((x as Real) + rng.gen_range(-1.0, 1.0))/(BUFFER_WIDTH as Real) * 2.0 - 1.0; // [-1:1]
-                let norm_pos_y = ((y as Real) + rng.gen_range(-1.0, 1.0))/(BUFFER_HEIGHT as Real) * 2.0 - 1.0; // [-1:1]
+                let norm_pos_x = ((x as Real) + rng.gen_range(-0.5, 0.5))/(BUFFER_WIDTH as Real) * 2.0 - 1.0; // [-1:1]
+                let norm_pos_y = ((y as Real) + rng.gen_range(-0.5, 0.5))/(BUFFER_HEIGHT as Real) * 2.0 - 1.0; // [-1:1]
                 let mut pos = Complex {r: 0.0, i: 0.0};
                 pos.r = CENTER_X + norm_pos_x * VIEW_WIDTH / 2.0; // real axis
                 pos.i = CENTER_Y + norm_pos_y * VIEW_HEIGHT / 2.0; // imaginary axis
