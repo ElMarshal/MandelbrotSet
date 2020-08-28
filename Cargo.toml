@@ -1,7 +1,8 @@
 [package]
-name = "MandelbrotSet"
+name = "mandelbrot_set"
 version = "0.1.0"
 authors = ["marshal20"]
+description = "Mandelbrot set fractal renderer"
 edition = "2018"
 
 [dependencies]

@@ -1,7 +1,6 @@
 use std::path::Path;
 use std::fs::File;
 use std::io::BufWriter;
-use std::string;
 use rand::Rng;
 
 type Real = f32;

@@ -1,5 +1,5 @@
 # MandelbrotSet
-Mandelbrot set written in rust
+Mandelbrot set fractal renderer written in rust
 
 ## Result
 X = -0.7453  
