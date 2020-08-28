@@ -1,6 +1,7 @@
 use std::path::Path;
 use std::fs::File;
 use std::io::BufWriter;
+use std::string;
 use rand::Rng;
 
 type Real = f32;
@@ -34,6 +35,10 @@ struct Color {
 }
 
 impl Color {
+    fn new() -> Color {
+        Color {r:0.0, g:0.0, b:0.0, a:0.0}
+    }
+
     fn add(&mut self, rhs: Color) {
         self.r += rhs.r;
         self.g += rhs.g;
@@ -85,32 +90,33 @@ fn main() {
     const MAX_LENGTH: Real = 2.0;
 
     // COLOR PALLETE SOURCE: https://stackoverflow.com/a/16505538/9218594
-    const COLOR_PALETTE: [Color; 16] = 
-        [Color {r:0.26, g:0.1, b:0.06, a:1.0}, 
-        Color {r:0.1, g:0.03, b:0.1, a:1.0}, 
-        Color {r:0.3, g:0.004, b:0.18, a:1.0}, 
+    const COLOR_PALETTE: [Color; 16] = [
+        Color {r:0.26, g:0.1,  b:0.06, a:1.0}, 
+        Color {r:0.1,  g:0.03, b:0.1,  a:1.0}, 
+        Color {r:0.3,  g:0.01, b:0.18, a:1.0}, 
         Color {r:0.02, g:0.02, b:0.28, a:1.0}, 
-        Color {r:0.0, g:0.03, b:0.4, a:1.0}, 
+        Color {r:0.0,  g:0.03, b:0.4,  a:1.0}, 
         Color {r:0.05, g:0.17, b:0.54, a:1.0}, 
-        Color {r:0.1, g:0.3, b:0.7, a:1.0}, 
-        Color {r:0.25, g:0.5, b:0.82, a:1.0}, 
-        Color {r:0.53, g:0.71, b:0.9, a:1.0}, 
+        Color {r:0.1,  g:0.3,  b:0.7,  a:1.0}, 
+        Color {r:0.25, g:0.5,  b:0.82, a:1.0}, 
+        Color {r:0.53, g:0.71, b:0.9,  a:1.0}, 
         Color {r:0.83, g:0.93, b:0.97, a:1.0}, 
         Color {r:0.95, g:0.91, b:0.75, a:1.0}, 
         Color {r:0.97, g:0.78, b:0.37, a:1.0}, 
-        Color {r:1.0, g:0.67, b:0.0, a:1.0}, 
-        Color {r:0.8, g:0.5, b:0.0, a:1.0}, 
-        Color {r:0.6, g:0.34, b:0.0, a:1.0}, 
-        Color {r:0.42, g:0.2, b:0.02, a:1.0} ];
+        Color {r:1.0,  g:0.67, b:0.0,  a:1.0}, 
+        Color {r:0.8,  g:0.5,  b:0.0,  a:1.0}, 
+        Color {r:0.6,  g:0.34, b:0.0,  a:1.0}, 
+        Color {r:0.42, g:0.2,  b:0.02, a:1.0} 
+        ];
 
-    let mut color_buffer = vec![Color {r:0.0, g:0.0, b:0.0, a:0.0}; BUFFER_WIDTH * BUFFER_HEIGHT]; // Row major
+    let mut color_buffer = vec![Color::new(); BUFFER_WIDTH * BUFFER_HEIGHT]; // Row major
 
     let mut rng = rand::thread_rng();
     println!("Drawing the buffer...");
 
     for y in 0..BUFFER_HEIGHT {
         for x in 0..BUFFER_WIDTH {
-            let mut pixel_color = Color {r:0.0, g:0.0, b:0.0, a:0.0};
+            let mut pixel_color = Color::new();
             for _ in 0..SAMPLE_COUNT {
                 let norm_pos_x = ((x as Real) + rng.gen_range(-0.5, 0.5))/(BUFFER_WIDTH as Real) * 2.0 - 1.0; // [-1:1]
                 let norm_pos_y = ((y as Real) + rng.gen_range(-0.5, 0.5))/(BUFFER_HEIGHT as Real) * 2.0 - 1.0; // [-1:1]
@@ -128,8 +134,21 @@ fn main() {
             pixel_color.divide(SAMPLE_COUNT as Real);
             color_buffer[y * BUFFER_WIDTH + x] = pixel_color;
         }
+        let progress = (y * 100) / BUFFER_HEIGHT; // [0:100]
+        let mut progress_bar = String::from("[");
+        for i in 0..50 {
+            if i <= progress/2 {
+                progress_bar.push('=');
+            }
+            else {
+                progress_bar.push(' ');
+            }
+        }
+        progress_bar.push_str("]");
+        print!("\r{} {}%  ", progress_bar, progress);
     }
 
+    println!("");
     println!("Saving buffer to PNG...");
     save_image(&color_buffer, BUFFER_WIDTH, BUFFER_HEIGHT, "output/image.png");
     println!("Saved buffer to image.png");
