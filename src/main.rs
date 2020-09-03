@@ -76,6 +76,21 @@ fn save_image(color_buffer: &[Color], width: usize, height: usize, path: &str) {
     writer.write_image_data(&rgba_data).unwrap();
 }
 
+// Prints the progress [0:100] as a bar in the console
+fn print_progress(progress: u32) {
+    let mut progress_bar = String::from("[");
+    for i in 0..50 {
+        if i <= progress/2 {
+            progress_bar.push('=');
+        }
+        else {
+            progress_bar.push(' ');
+        }
+    }
+    progress_bar.push_str("]");
+    print!("\r{} {}%  ", progress_bar, progress);
+}
+
 fn main() {
     const BUFFER_WIDTH: usize = 1366;
     const BUFFER_HEIGHT: usize = 768;
@@ -134,18 +149,9 @@ fn main() {
             color_buffer[y * BUFFER_WIDTH + x] = pixel_color;
         }
         let progress = (y * 100) / BUFFER_HEIGHT; // [0:100]
-        let mut progress_bar = String::from("[");
-        for i in 0..50 {
-            if i <= progress/2 {
-                progress_bar.push('=');
-            }
-            else {
-                progress_bar.push(' ');
-            }
-        }
-        progress_bar.push_str("]");
-        print!("\r{} {}%  ", progress_bar, progress);
+        print_progress(progress as u32);
     }
+    print_progress(100);
 
     println!("");
     println!("Saving buffer to PNG...");
