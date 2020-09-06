@@ -1,6 +1,7 @@
 use std::path::Path;
 use std::fs::File;
 use std::io::BufWriter;
+use std::time;
 use rand::Rng;
 
 type Real = f32;
@@ -127,6 +128,7 @@ fn main() {
 
     let mut rng = rand::thread_rng();
     println!("Drawing the buffer...");
+    let start_time = time::Instant::now();
 
     for y in 0..BUFFER_HEIGHT {
         for x in 0..BUFFER_WIDTH {
@@ -152,9 +154,9 @@ fn main() {
         print_progress(progress as u32);
     }
     print_progress(100);
+    let duration = time::Instant::now().duration_since(start_time).as_secs();
+    println!("\nFinished rendering in {}h{}m{}s", (duration/60/60), (duration/60)%60, duration%(60*60));
 
-    println!("");
-    println!("Saving buffer to PNG...");
     save_image(&color_buffer, BUFFER_WIDTH, BUFFER_HEIGHT, "output/image.png");
     println!("Saved buffer to image.png");
 }
