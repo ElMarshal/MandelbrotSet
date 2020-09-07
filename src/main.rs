@@ -107,7 +107,7 @@ where T: PartialOrd {
 }
 
 fn divide_roundup(numinator: usize, denominator: usize) -> usize {
-    if(numinator%denominator == 0) {
+    if numinator%denominator == 0 {
         return numinator/denominator;
     }
     numinator/denominator+1
