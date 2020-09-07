@@ -29,6 +29,24 @@ impl Complex {
 }
 
 #[derive(Copy, Clone)]
+struct Vec2<T> {
+    x: T,
+    y: T,
+}
+
+impl Vec2<usize> {
+    fn new() -> Vec2<usize> {
+        Vec2{x:0, y:0}
+    }
+}
+
+impl Vec2<Real> {
+    fn new() -> Vec2<Real> {
+        Vec2{x:0.0, y:0.0}
+    }
+}
+
+#[derive(Copy, Clone)]
 struct Color {
     r: Real,
     g: Real,
@@ -83,7 +101,7 @@ fn save_image(color_buffer: &[Color], width: usize, height: usize, path: &str) {
 fn print_progress(progress: u32) {
     let mut progress_bar = String::from("[");
     for i in 0..50 {
-        if i <= progress/2 {
+        if i < progress/2 {
             progress_bar.push('=');
         }
         else {
@@ -138,46 +156,44 @@ const MAX_LENGTH: Real = 2.0;
 
 #[derive(Copy, Clone)]
 struct ThreadDescryptor {
-    off_x : usize,
-    off_y : usize, 
-    width : usize, // Thread width
-    height : usize, // Thread height
-    color_buffer_width : usize,
-    color_buffer_height : usize,
-    sample_count : usize,
-    center_x : Real,
-    center_y : Real,
-    view_width : Real,
-    view_height : Real,
+    offset: Vec2<usize>,
+    thread_size: Vec2<usize>,
+    color_buffer_size: Vec2<usize>,
+    sample_count: usize,
+    center: Vec2<Real>,
+    view_size: Vec2<Real>,
 }
 
 impl ThreadDescryptor {
     fn new() -> ThreadDescryptor {
         ThreadDescryptor {
-            off_x: 0, off_y: 0,
-            width: 0, height: 0,
-            color_buffer_width: 0, color_buffer_height: 0,
+            offset: Vec2::<usize>::new(),
+            thread_size: Vec2::<usize>::new(),
+            color_buffer_size: Vec2::<usize>::new(),
             sample_count: 0,
-            center_x: 0.0, center_y: 0.0,
-            view_width: 0.0, view_height: 0.0
+            center: Vec2::<Real>::new(),
+            view_size: Vec2::<Real>::new(),
         }
     }
 }
 
-fn thread_worker(color_buffer : Arc<Mutex<Vec<Color>>>, descrypt : ThreadDescryptor) {
-    let mut temp_color_buffer = vec![Color::new(); descrypt.width * descrypt.height];
+fn thread_worker(color_buffer : Arc<Mutex<Vec<Color>>>, desc : ThreadDescryptor) {
+    let mut temp_color_buffer = vec![Color::new(); desc.thread_size.x * desc.thread_size.y];
     let mut rng = rand::thread_rng();
 
+    //println!("New Thread: x {}, y {}, width {}, height {}", desc.offset.x, desc.offset.y, desc.thread_size.x, desc.thread_size.y);
+
     // Render the fractal into the temporary color buffer
-    for y in 0..descrypt.height {
-        for x in 0..descrypt.width {
+    for y in 0..desc.thread_size.y {
+        for x in 0..desc.thread_size.x {
             let mut pixel_color = Color::new();
-            for _ in 0..descrypt.sample_count {
-                let norm_pos_x = (((x+descrypt.off_x) as Real) + rng.gen_range(-0.5, 0.5))/(descrypt.color_buffer_width as Real) * 2.0 - 1.0; // [-1:1]
-                let norm_pos_y = (((y+descrypt.off_y) as Real) + rng.gen_range(-0.5, 0.5))/(descrypt.color_buffer_height as Real) * 2.0 - 1.0; // [-1:1]
+            for _ in 0..desc.sample_count {
+                let mut norm_pos = Vec2::<Real>::new();
+                norm_pos.x = (((x+desc.offset.x) as Real) + rng.gen_range(-0.5, 0.5))/(desc.color_buffer_size.x as Real) * 2.0 - 1.0; // [-1:1]
+                norm_pos.y = (((y+desc.offset.y) as Real) + rng.gen_range(-0.5, 0.5))/(desc.color_buffer_size.y as Real) * 2.0 - 1.0; // [-1:1]
                 let mut pos = Complex {r: 0.0, i: 0.0};
-                pos.r = descrypt.center_x + norm_pos_x * descrypt.view_width / 2.0; // real axis
-                pos.i = descrypt.center_y + norm_pos_y * descrypt.view_height / 2.0; // imaginary axis
+                pos.r = desc.center.x + norm_pos.x * desc.view_size.x / 2.0; // real axis
+                pos.i = desc.center.y + norm_pos.y * desc.view_size.y / 2.0; // imaginary axis
                 let mut iterations: u32 = 0;
                 let mut temp = Complex {r: 0.0, i: 0.0};
                 while temp.length() <= MAX_LENGTH && iterations < MAX_ITERATIONS {
@@ -186,24 +202,24 @@ fn thread_worker(color_buffer : Arc<Mutex<Vec<Color>>>, descrypt : ThreadDescryp
                 }
                 pixel_color.add(COLOR_PALETTE[(iterations%16) as usize]);
             }
-            pixel_color.divide(descrypt.sample_count as Real);
-            temp_color_buffer[y * descrypt.width + x] = pixel_color;
+            pixel_color.divide(desc.sample_count as Real);
+            temp_color_buffer[y * desc.thread_size.x + x] = pixel_color;
         }
     }
 
     // copy the temporary color buffer after locking the color_buffer mutex
     let mut cb = color_buffer.lock().unwrap();
-    for y in 0..descrypt.height {
-        for x in 0..descrypt.width {
-            cb[(y+descrypt.off_y) * descrypt.color_buffer_width + (x+descrypt.off_x)] = temp_color_buffer[y * descrypt.width + x];
+    for y in 0..desc.thread_size.y {
+        for x in 0..desc.thread_size.x {
+            cb[(y+desc.offset.y) * desc.color_buffer_size.x + (x+desc.offset.x)] = temp_color_buffer[y * desc.thread_size.x + x];
         }
     }
 
 }
 
 fn main() {
-    const BUFFER_WIDTH: usize = 1366;
-    const BUFFER_HEIGHT: usize = 768;
+    const BUFFER_WIDTH: usize = 1366; // 7680; // 3840; // 1366;
+    const BUFFER_HEIGHT: usize = 768; // 4320; // 2160; // 768;
     const BUFFER_ASPECT_RATIO: Real = (BUFFER_WIDTH as Real) / (BUFFER_HEIGHT as Real);
     const SAMPLE_COUNT: usize = 16;
     const CENTER_X: Real = -0.7453;
@@ -218,27 +234,23 @@ fn main() {
     let color_buffer = Arc::new(Mutex::new(vec![Color::new(); BUFFER_WIDTH * BUFFER_HEIGHT]));
 
     println!("Drawing the buffer...");
+    print_progress(0);
     let start_time = time::Instant::now();
 
     // Fill threads descryptors
     let mut threads_descryptors = Vec::new();
     for y in 0..divide_roundup(BUFFER_HEIGHT, THREAD_HEIGHT) {
         for x in 0..divide_roundup(BUFFER_WIDTH, THREAD_WIDTH) {
-            let mut new_descryptor = ThreadDescryptor::new();
-            new_descryptor.off_x = x * THREAD_WIDTH;
-            new_descryptor.off_y = y * THREAD_HEIGHT;
+            let mut new_desc = ThreadDescryptor::new();
+            new_desc.offset = Vec2::<usize>{x: x * THREAD_WIDTH, y: y * THREAD_HEIGHT};
             let max_width = BUFFER_WIDTH - x*THREAD_WIDTH;
             let max_height = BUFFER_HEIGHT - y*THREAD_HEIGHT;
-            new_descryptor.height = clamp(THREAD_HEIGHT, 0, max_height);
-            new_descryptor.width = clamp(THREAD_WIDTH, 0, max_width);
-            new_descryptor.color_buffer_width = BUFFER_WIDTH;
-            new_descryptor.color_buffer_height = BUFFER_HEIGHT;
-            new_descryptor.sample_count = SAMPLE_COUNT;
-            new_descryptor.center_x = CENTER_X;
-            new_descryptor.center_y = CENTER_Y;
-            new_descryptor.view_width = VIEW_WIDTH;
-            new_descryptor.view_height = VIEW_HEIGHT;
-            threads_descryptors.push(new_descryptor);
+            new_desc.thread_size = Vec2::<usize>{x: clamp(THREAD_WIDTH, 0, max_width-1), y: clamp(THREAD_HEIGHT, 0, max_height-1)};
+            new_desc.color_buffer_size = Vec2::<usize>{x: BUFFER_WIDTH, y: BUFFER_HEIGHT};
+            new_desc.sample_count = SAMPLE_COUNT;
+            new_desc.center = Vec2::<Real>{x: CENTER_X, y:CENTER_Y};
+            new_desc.view_size = Vec2::<Real>{x: VIEW_WIDTH, y:VIEW_HEIGHT};
+            threads_descryptors.push(new_desc);
         }
     }
 
@@ -264,7 +276,7 @@ fn main() {
 
     print_progress(100);
     let duration = time::Instant::now().duration_since(start_time).as_secs();
-    println!("\nFinished rendering in {}h{}m{}s", (duration/60/60), (duration/60)%60, duration%(60*60));
+    println!("\nFinished rendering in {}h{}m{}s", (duration/60/60), (duration/60)%60, duration%60);
 
     let cb = color_buffer.lock().unwrap();
     save_image(&cb, BUFFER_WIDTH, BUFFER_HEIGHT, "output/image.png");
