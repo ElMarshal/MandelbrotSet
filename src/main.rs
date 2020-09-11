@@ -2,7 +2,7 @@ use std::path::Path;
 use std::fs::File;
 use std::io::{BufWriter, stdout, Write};
 use std::time;
-use std::sync::{Mutex, Arc};
+use std::sync::{Mutex, Arc, mpsc::channel, mpsc::Sender};
 use rand::Rng;
 use std::thread;
 
@@ -113,8 +113,7 @@ fn print_progress(progress: u32) {
     stdout().flush().unwrap();
 }
 
-fn clamp<T>(value: T, min: T, max: T) -> T 
-where T: PartialOrd {
+fn clamp<T: PartialOrd>(value: T, min: T, max: T) -> T {
     if value < min {
         return min;
     }
@@ -129,6 +128,13 @@ fn divide_roundup(numinator: usize, denominator: usize) -> usize {
         return numinator/denominator;
     }
     numinator/denominator+1
+}
+
+fn min<T: PartialOrd>(a: T, b: T) -> T {
+    if a < b {
+        return a;
+    }
+    b
 }
 
 // Render Parameters
@@ -177,7 +183,7 @@ impl ThreadDescryptor {
     }
 }
 
-fn thread_worker(color_buffer : Arc<Mutex<Vec<Color>>>, desc : ThreadDescryptor) {
+fn thread_worker(color_buffer: Arc<Mutex<Vec<Color>>>, desc: ThreadDescryptor, id: usize, finishing_sender: Sender<usize>) {
     let mut temp_color_buffer = vec![Color::new(); desc.thread_size.x * desc.thread_size.y];
     let mut rng = rand::thread_rng();
 
@@ -187,6 +193,7 @@ fn thread_worker(color_buffer : Arc<Mutex<Vec<Color>>>, desc : ThreadDescryptor)
     for y in 0..desc.thread_size.y {
         for x in 0..desc.thread_size.x {
             let mut pixel_color = Color::new();
+            // Stochastic Sampling
             for _ in 0..desc.sample_count {
                 let mut norm_pos = Vec2::<Real>::new();
                 norm_pos.x = (((x+desc.offset.x) as Real) + rng.gen_range(-0.5, 0.5))/(desc.color_buffer_size.x as Real) * 2.0 - 1.0; // [-1:1]
@@ -215,6 +222,7 @@ fn thread_worker(color_buffer : Arc<Mutex<Vec<Color>>>, desc : ThreadDescryptor)
         }
     }
 
+    finishing_sender.send(id).unwrap();
 }
 
 fn main() {
@@ -254,24 +262,48 @@ fn main() {
         }
     }
 
-    // Spawn threads_descryptors.len() threads, THREAD_COUNT at a time
-    for i in 0..divide_roundup(threads_descryptors.len(), THREAD_COUNT) {
-        let max_thread_count = clamp(THREAD_COUNT, 0, threads_descryptors.len() - i*THREAD_COUNT);
-        let mut threads = Vec::new();
-
-        for t in 0..max_thread_count {
-            let descryptor = threads_descryptors[i*THREAD_COUNT + t];
-            let color_buffer_clone = color_buffer.clone();
-            threads.push(thread::spawn(move || thread_worker(color_buffer_clone, descryptor.clone())));
-        }
-
-        // join all threads
-        for thread in threads {
-            thread.join().unwrap();
-        }
-
-        let progress = (i*THREAD_COUNT)*100/threads_descryptors.len();
+    // Spawn threads
+    let mut spawned_threads = vec![false; threads_descryptors.len()];
+    let mut threads = Vec::<thread::JoinHandle<()>>::new();
+    let (sender, receiver) = channel::<usize>();
+    // Spawn THREAD_COUNT thread first
+    for i in 0..min(threads_descryptors.len(), THREAD_COUNT) {
+        let descryptor = threads_descryptors[i];
+        let color_buffer_clone = color_buffer.clone();
+        let sender_clone = sender.clone();
+        threads.push(thread::spawn(move || thread_worker(color_buffer_clone, descryptor, i, sender_clone)));
+        spawned_threads[i] = true;
+    }
+    let mut finished_threads = 0usize;
+    while finished_threads < threads_descryptors.len() {
+        let finished_id = receiver.recv().unwrap();
+        finished_threads += 1;
+        let progress = finished_threads*100/threads_descryptors.len();
         print_progress(progress as u32);
+        //threads[finished_id].join().unwrap();
+        let mut available_id = 0usize;
+        {
+            let mut found_available = false;
+            for i in 0..spawned_threads.len() {
+                if !spawned_threads[i] {
+                    available_id = i;
+                    found_available = true;
+                }
+            }
+            if !found_available {
+                continue;
+            }
+        }
+        let descryptor = threads_descryptors[available_id];
+        let color_buffer_clone = color_buffer.clone();
+        let sender_clone = sender.clone();
+        threads.push(thread::spawn(move || thread_worker(color_buffer_clone, descryptor, finished_id, sender_clone)));
+        spawned_threads[available_id] = true;
+    }
+
+    // join all threads
+    for thread in threads {
+        thread.join().unwrap();
     }
 
     print_progress(100);
