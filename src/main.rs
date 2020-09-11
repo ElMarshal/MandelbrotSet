@@ -263,7 +263,7 @@ fn main() {
     }
 
     // Spawn threads
-    let mut spawned_threads = vec![false; threads_descryptors.len()];
+    let mut next_thread = 0usize;
     let mut threads = Vec::<thread::JoinHandle<()>>::new();
     let (sender, receiver) = channel::<usize>();
     // Spawn THREAD_COUNT thread first
@@ -272,7 +272,7 @@ fn main() {
         let color_buffer_clone = color_buffer.clone();
         let sender_clone = sender.clone();
         threads.push(thread::spawn(move || thread_worker(color_buffer_clone, descryptor, i, sender_clone)));
-        spawned_threads[i] = true;
+        next_thread += 1;
     }
     let mut finished_threads = 0usize;
     while finished_threads < threads_descryptors.len() {
@@ -280,25 +280,16 @@ fn main() {
         finished_threads += 1;
         let progress = finished_threads*100/threads_descryptors.len();
         print_progress(progress as u32);
-        //threads[finished_id].join().unwrap();
-        let mut available_id = 0usize;
-        {
-            let mut found_available = false;
-            for i in 0..spawned_threads.len() {
-                if !spawned_threads[i] {
-                    available_id = i;
-                    found_available = true;
-                }
-            }
-            if !found_available {
-                continue;
-            }
+        // print!("{}/{}   ", finished_threads, threads_descryptors.len()); // thread number
+        // Spawn a new thread if needed
+        if next_thread < threads_descryptors.len() {
+            let descryptor = threads_descryptors[next_thread];
+            let color_buffer_clone = color_buffer.clone();
+            let sender_clone = sender.clone();
+            // Replace the finished thread handle
+            threads[finished_id] = thread::spawn(move || thread_worker(color_buffer_clone, descryptor, finished_id, sender_clone));
+            next_thread += 1;
         }
-        let descryptor = threads_descryptors[available_id];
-        let color_buffer_clone = color_buffer.clone();
-        let sender_clone = sender.clone();
-        threads.push(thread::spawn(move || thread_worker(color_buffer_clone, descryptor, finished_id, sender_clone)));
-        spawned_threads[available_id] = true;
     }
 
     // join all threads
@@ -306,7 +297,6 @@ fn main() {
         thread.join().unwrap();
     }
 
-    print_progress(100);
     let duration = time::Instant::now().duration_since(start_time).as_secs();
     println!("\nFinished rendering in {}h{}m{}s", (duration/60/60), (duration/60)%60, duration%60);
 
