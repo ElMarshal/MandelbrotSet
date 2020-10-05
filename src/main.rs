@@ -197,7 +197,7 @@ fn thread_worker(color_buffer: Arc<Mutex<Vec<Color>>>, desc: ThreadDescryptor, i
             for _ in 0..desc.sample_count {
                 let mut norm_pos = Vec2::<Real>::new();
                 norm_pos.x = (((x+desc.offset.x) as Real) + rng.gen_range(-0.5, 0.5))/(desc.color_buffer_size.x as Real) * 2.0 - 1.0; // [-1:1]
-                norm_pos.y = (((y+desc.offset.y) as Real) + rng.gen_range(-0.5, 0.5))/(desc.color_buffer_size.y as Real) * 2.0 - 1.0; // [-1:1]
+                norm_pos.y = -((((y+desc.offset.y) as Real) + rng.gen_range(-0.5, 0.5))/(desc.color_buffer_size.y as Real) * 2.0 - 1.0); // [-1:1]
                 let mut pos = Complex {r: 0.0, i: 0.0};
                 pos.r = desc.center.x + norm_pos.x * desc.view_size.x / 2.0; // real axis
                 pos.i = desc.center.y + norm_pos.y * desc.view_size.y / 2.0; // imaginary axis
